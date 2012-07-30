@@ -1,15 +1,15 @@
 package no.uib.esysbio.ldconverter;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 import java.util.Collection;
-import java.util.Iterator;
 
 import ncsa.hdf.hdf5lib.H5;
 import ncsa.hdf.hdf5lib.HDF5Constants;
 import ncsa.hdf.hdf5lib.exceptions.HDF5Exception;
-import org.apache.commons.io.*;
+
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.filefilter.IOFileFilter;
+import org.apache.commons.io.filefilter.TrueFileFilter;
 
 /**
  * This program converts a hapmap file <a
@@ -17,9 +17,47 @@ import org.apache.commons.io.*;
  * for more explanation</a>
  * 
  */
+
+class MyFileFilter implements IOFileFilter {
+
+	private String filename;
+
+	/**
+	 * 
+	 */
+	public MyFileFilter(String filename) {
+		this.filename = filename;
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see org.apache.commons.io.filefilter.IOFileFilter#accept(java.io.File)
+	 */
+	public boolean accept(File file) {
+		return file.getName().equals(filename);
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see org.apache.commons.io.filefilter.IOFileFilter#accept(java.io.File,
+	 * java.lang.String)
+	 */
+	public boolean accept(File dir, String name) {
+		return false;
+	}
+
+}
+
 public class HapMapToHdfWriter {
 
-	static char delimiter = ' ';
+	/**
+	 * @author Haakon Sagehaug, mdondrup
+	 * 
+	 */
+
+	static String delimiter = "\\t";
 
 	/** Name for the dataset containing the snp id */
 
@@ -37,6 +75,7 @@ public class HapMapToHdfWriter {
 	/*
 	 * Creates a new dataset to add values in.
 	 */
+	@SuppressWarnings("deprecation")
 	private static void createIntegerDataset(int fid, long[] dims,
 			long[] chunkSize, String groupName) throws Exception {
 		int did_snp = -1, did_CorSNP = -1, did_value = -1, did_marker_one_pos = -1, did_marker_two_pos = -1, type_int_id = -1, type_double_id = -1, sid = -1, plist = -1, group_id = -1;
@@ -48,41 +87,42 @@ public class HapMapToHdfWriter {
 			// use variable length to save space
 
 			sid = H5.H5Screate_simple(RANK, dims, MAX_DIMS);
-
+			// System.out.println(sid);
 			// figure out creation properties
 
 			plist = H5.H5Pcreate(HDF5Constants.H5P_DATASET_CREATE);
-
+			// System.out.println("plist " + plist);
 			H5.H5Pset_layout(plist, HDF5Constants.H5D_CHUNKED);
 
 			H5.H5Pset_chunk(plist, RANK, chunkSize);
 
 			H5.H5Pset_deflate(plist, 6);
-
 			group_id = H5.H5Gcreate(fid, groupName, HDF5Constants.H5P_DEFAULT);
-
+			// System.out.println("group id " + group_id + ":" + groupName
+			// + DNAME_SNP);
 			did_snp = H5.H5Dcreate(group_id, groupName + DNAME_SNP,
 					type_int_id, sid, plist);
-
+			// System.out.println("snp" + did_snp);
 			did_marker_one_pos = H5.H5Dcreate(group_id, groupName
 					+ DNAME_MARKER_ONE, type_int_id, sid, plist);
-
+			// System.out.println(did_marker_one_pos);
 			did_marker_two_pos = H5.H5Dcreate(group_id, groupName
 					+ DNAME_MARKER_TWO, type_int_id, sid, plist);
-
+			// System.out.println(did_marker_two_pos);
 			did_CorSNP = H5.H5Dcreate(group_id, groupName + DNAME_COR_SNP,
 					type_int_id, sid, plist);
-
+			// System.out.println(did_CorSNP);
 			did_value = H5.H5Dcreate(group_id, groupName + DNAME_VALUES,
 					type_double_id, sid, plist);
-
-			System.out.println("created for chr " + groupName);
+			// System.out.println(did_value);
+			// System.out.println("created for chr " + groupName);
 			// H5.H5Pset_szip(plist, HDF5Constants.H5_SZIP_NN_OPTION_MASK, 8);
 		} finally {
 			try {
 				H5.H5Pclose(plist);
 
 			} catch (HDF5Exception ex) {
+
 			}
 			try {
 				H5.H5Sclose(sid);
@@ -112,36 +152,53 @@ public class HapMapToHdfWriter {
 	 *            Folder to look for the text files in.
 	 * @throws Exception
 	 */
-	private static void writeDataFromFileToInt(int fid, String sourceFolder)
-			throws Exception {
+	@SuppressWarnings("deprecation")
+	private static void writeDataFromFileToInt(int fid, String sourceFolder,
+			String filename) throws Exception {
 		int did_SNP = -1, did_CorSNP = -1, did_value = -1, did_marker_one = -1, did_marker_two = -1, type_int_id, type_double_id = -1, msid = -1, fsid = -1, timesWritten = 0, group_id = -1;
 
+		IOFileFilter filter = new MyFileFilter(filename);
+		// search all files in all subdirectories that match the filename
+		// search all subdirectories
 		Collection<File> fileCollection = FileUtils.listFiles(new File(
-				sourceFolder), new String[] { "txt" }, false);
+				sourceFolder), filter, TrueFileFilter.INSTANCE);
 
 		int filesAdded = 0;
 
 		for (File sourceFile : fileCollection) {
 			try {
-				String chromosome_tmp = sourceFile.getName().split("_")[1];
-				String chromosome = chromosome_tmp.substring(3,
-						chromosome_tmp.length());
-				chromosome = "/" + chromosome + "/";
+				// The chromosome name is extracted from the file name
+				// TODO: This cannot stay like this, the chromosome name must be
+				// inferred from the folder name
+				// String chromosome_tmp = sourceFile.getName().split("_")[1];
+				// String chromosome = chromosome_tmp.substring(3,
+				// chromosome_tmp.length());
+				// chromosome = "/" + chromosome + "/";
+				String chromosome = "/"
+						+ sourceFile.getParentFile().getName().trim() + "";
+				System.out.println("working on chromosome " + chromosome);
+				if (chromosome.isEmpty())
+					continue;
 
 				BigFile tmpfile = new BigFile(sourceFile.getAbsolutePath());
-
-				int numLines = 0;
+				System.out.println("working on file "
+						+ sourceFile.getAbsolutePath());
+				long numLines = 0;
 				long t1 = System.currentTimeMillis();
-				for (String ldLine : tmpfile)
+
+				while (tmpfile.iterator().hasNext())
 					numLines++;
 
 				long t2 = System.currentTimeMillis();
 
-				System.out.println("lines " + numLines + " time spent "
-						+ (t2 - t1));
+				System.out.println("lines " + numLines
+						+ ", time spent (counting)" + (t2 - t1));
 				long[] DIMS = { numLines };
-				long[] CHUNK_SIZE = { 1000000 };
-				int BLOCK_SIZE = 3000000;
+				// : There was a little bug here, if blocksize was < number of
+				// lines:
+				long[] CHUNK_SIZE = { 10000 };
+				final int BLOCK_SIZE = (numLines < 30000L) ? (int) numLines
+						: 30000;
 
 				long[] count = { BLOCK_SIZE };
 				createIntegerDataset(fid, DIMS, CHUNK_SIZE, chromosome);
@@ -179,71 +236,73 @@ public class HapMapToHdfWriter {
 				int currentLine = 0;
 				timesWritten = 0;
 				for (String ldLine : ldFile) {
-					char[] ldArray = new char[ldLine.length() - 1];
-					ldLine.getChars(0, ldArray.length - 1, ldArray, 0);
-					int numWhiteSpaces = 0;
-					int stopOne = 0;
-					int stopTwo = 0;
+					String[] ls = ldLine.split(delimiter);
 
-					int snpIdStart = 0;
-					int snpIdEnd = 0;
+					/*
+					 * char[] ldArray = new char[ldLine.length() - 1];
+					 * ldLine.getChars(0, ldArray.length - 1, ldArray, 0); int
+					 * numWhiteSpaces = 0; int stopOne = 0; int stopTwo = 0;
+					 * 
+					 * int snpIdStart = 0; int snpIdEnd = 0;
+					 * 
+					 * int snpIdTwoStart = 0; int snpIdTwoEnd = 0;
+					 * 
+					 * int posOneStop = 0;
+					 * 
+					 * int posTwoStop = 0;
+					 * 
+					 * you didn't know string.split???
+					 * 
+					 * for (int j = 0; j < ldArray.length; j++) { if (ldArray[j]
+					 * == delimiter) numWhiteSpaces++;
+					 * 
+					 * if (numWhiteSpaces == 6 && stopOne == 0) stopOne = j;
+					 * 
+					 * if (numWhiteSpaces == 7 && stopTwo == 0) stopTwo = j;
+					 * 
+					 * if (numWhiteSpaces == 3 && snpIdStart == 0) snpIdStart =
+					 * j;
+					 * 
+					 * if (numWhiteSpaces == 4 && snpIdEnd == 0) { snpIdEnd = j;
+					 * }
+					 * 
+					 * if (numWhiteSpaces == 4 && snpIdTwoStart == 0)
+					 * snpIdTwoStart = j;
+					 * 
+					 * if (numWhiteSpaces == 5 && snpIdTwoEnd == 0) snpIdTwoEnd
+					 * = j;
+					 * 
+					 * if (numWhiteSpaces == 1 && posOneStop == 0) posOneStop =
+					 * j;
+					 * 
+					 * if (numWhiteSpaces == 2 && posTwoStop == 0) posTwoStop =
+					 * j; }
+					 */
 
-					int snpIdTwoStart = 0;
-					int snpIdTwoEnd = 0;
+					currentSNPIdArray[idx] = Integer.valueOf(ls[3].replaceAll(
+							"\\D", ""));
 
-					int posOneStop = 0;
+					correspondingSNPIdArray[idx] = Integer.valueOf(ls[4]
+							.replaceAll("\\D", ""));
+					valueArray[idx] = Double.valueOf(ls[6]);
 
-					int posTwoStop = 0;
+					markerOnePositionArray[idx] = Integer.valueOf(ls[0]);
 
-					for (int j = 0; j < ldArray.length; j++) {
-						if (ldArray[j] == delimiter)
-							numWhiteSpaces++;
+					markerTwoPositionArray[idx] = Integer.valueOf(ls[1]);
 
-						if (numWhiteSpaces == 6 && stopOne == 0)
-							stopOne = j;
-
-						if (numWhiteSpaces == 7 && stopTwo == 0)
-							stopTwo = j;
-
-						if (numWhiteSpaces == 3 && snpIdStart == 0)
-							snpIdStart = j;
-
-						if (numWhiteSpaces == 4 && snpIdEnd == 0) {
-							snpIdEnd = j;
-						}
-
-						if (numWhiteSpaces == 4 && snpIdTwoStart == 0)
-							snpIdTwoStart = j;
-
-						if (numWhiteSpaces == 5 && snpIdTwoEnd == 0)
-							snpIdTwoEnd = j;
-
-						if (numWhiteSpaces == 1 && posOneStop == 0)
-							posOneStop = j;
-
-						if (numWhiteSpaces == 2 && posTwoStop == 0)
-							posTwoStop = j;
-					}
-
-					currentSNPIdArray[idx] = Integer.valueOf(ldLine.substring(
-							snpIdStart + 3, snpIdEnd));
-
-					correspondingSNPIdArray[idx] = Integer.valueOf(ldLine
-							.substring(snpIdTwoStart + 3, snpIdTwoEnd));
-					valueArray[idx] = Double.valueOf(ldLine.substring(
-							stopOne + 1, stopTwo));
-
-					markerOnePositionArray[idx] = Integer.valueOf(ldLine
-							.substring(0, posOneStop));
-
-					markerTwoPositionArray[idx] = Integer.valueOf(ldLine
-							.substring(posOneStop + 1, posTwoStop));
-
+					/*
+					 * System.out.println(ldLine);
+					 * System.out.printf("%s,%s,%s,%s,%s\n",
+					 * markerOnePositionArray[idx], markerTwoPositionArray[idx],
+					 * valueArray[idx], currentSNPIdArray[idx],
+					 * correspondingSNPIdArray[idx]);
+					 */
+					// Writes the data to the hdf file.
 					idx++;
 
-					// Writes the data to the hdf file.
 					if (idx == BLOCK_SIZE) {
 						idx = 0;
+						System.err.println("in WRITE BLOCK");
 						H5.H5Sselect_hyperslab(fsid,
 								HDF5Constants.H5S_SELECT_SET,
 								new long[] { start_idx }, null, count, null);
@@ -318,9 +377,10 @@ public class HapMapToHdfWriter {
 				}
 				filesAdded++;
 
-				System.out.println("Finished parsing the file "
-						+ (System.currentTimeMillis() - t0) + " for number "
-						+ filesAdded);
+				System.out.println("Finished parsing "
+						+ sourceFile.getCanonicalPath() + " in "
+						+ (System.currentTimeMillis() - t0) + ", file number "
+						+ filesAdded + " of " + fileCollection.size());
 				// FileUtils.deleteQuietly(sourceFile);
 			} finally {
 				try {
@@ -328,10 +388,13 @@ public class HapMapToHdfWriter {
 					H5.H5Sclose(fsid);
 
 				} catch (HDF5Exception ex) {
+					ex.printStackTrace();
 				}
 				try {
 					H5.H5Sclose(msid);
 				} catch (HDF5Exception ex) {
+					ex.printStackTrace();
+
 				}
 				try {
 					H5.H5Dclose(did_SNP);
@@ -340,14 +403,15 @@ public class HapMapToHdfWriter {
 					H5.H5Dclose(did_marker_one);
 					H5.H5Dclose(did_marker_two);
 				} catch (HDF5Exception ex) {
+					ex.printStackTrace();
 				}
 			}
 		}
 
 	}
 
-	public void parseHapMapFileToHdf(String sourceFolder, String resultFile)
-			throws Exception {
+	public void parseHapMapFileToHdf(String sourceFolder, String resultFile,
+			String filename) throws Exception {
 		int fid = -1;
 
 		// Creates hdf5 file, gives back a file handler used to refer to the
@@ -356,7 +420,7 @@ public class HapMapToHdfWriter {
 				HDF5Constants.H5P_DEFAULT, HDF5Constants.H5P_DEFAULT);
 
 		if (fid < 0)
-			return;
+			throw new RuntimeException("Couldn't create file!");
 
 		try {
 			File sourceFolderObject = new File(sourceFolder);
@@ -364,20 +428,22 @@ public class HapMapToHdfWriter {
 			if (!sourceFolderObject.exists())
 				System.out.print("Folder " + sourceFolder + " does not exist");
 			else
-				writeDataFromFileToInt(fid, sourceFolder);
+				writeDataFromFileToInt(fid, sourceFolder, filename);
 		} finally {
 			H5.H5Fclose(fid);
 		}
 	}
 
-	public static void main(String[] args) {
+	public static void main(String[] args) throws Exception {
 		try {
 			/* Path to folder for hap map files. */
 			String pathToFolder = args[0];
 			/* Name of the file to create. */
 			String hdfFileToCreate = args[1];
+			String filename = args[2];
 			HapMapToHdfWriter instance = new HapMapToHdfWriter();
-			instance.parseHapMapFileToHdf(pathToFolder, hdfFileToCreate);
+			instance.parseHapMapFileToHdf(pathToFolder, hdfFileToCreate,
+					filename);
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		}

@@ -2,15 +2,14 @@ package no.uib.esysbio.ldconverter;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
+import java.io.IOException;
 import java.util.Iterator;
-
-import no.uib.esysbio.ldconverter.BigFile.FileIterator;
 
 public class BigFile implements Iterable<String> {
 
 	private BufferedReader _reader;
 
-	public BigFile(String filePath) throws Exception {
+	public BigFile(String filePath) throws IOException {
 		_reader = new BufferedReader(new FileReader(filePath), 1024 * 5);
 	}
 
@@ -25,7 +24,7 @@ public class BigFile implements Iterable<String> {
 		return new FileIterator();
 	}
 
-	public class FileIterator implements Iterator<String> {
+	class FileIterator implements Iterator<String> {
 		private String _currentLine;
 
 		public boolean hasNext() {
