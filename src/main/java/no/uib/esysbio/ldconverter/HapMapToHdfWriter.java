@@ -57,7 +57,7 @@ public class HapMapToHdfWriter {
 	 * 
 	 */
 
-	static String delimiter = "\\t";
+	static String delimiter = "\\s";
 
 	/** Name for the dataset containing the snp id */
 
@@ -160,6 +160,7 @@ public class HapMapToHdfWriter {
 		IOFileFilter filter = new MyFileFilter(filename);
 		// search all files in all subdirectories that match the filename
 		// search all subdirectories
+		@SuppressWarnings("unchecked")
 		Collection<File> fileCollection = FileUtils.listFiles(new File(
 				sourceFolder), filter, TrueFileFilter.INSTANCE);
 
@@ -302,7 +303,7 @@ public class HapMapToHdfWriter {
 
 					if (idx == BLOCK_SIZE) {
 						idx = 0;
-						System.err.println("in WRITE BLOCK");
+						// System.err.println(".");
 						H5.H5Sselect_hyperslab(fsid,
 								HDF5Constants.H5S_SELECT_SET,
 								new long[] { start_idx }, null, count, null);
@@ -434,7 +435,7 @@ public class HapMapToHdfWriter {
 		}
 	}
 
-	public static void main(String[] args) throws Exception {
+	public static void main(String[] args) {
 		try {
 			/* Path to folder for hap map files. */
 			String pathToFolder = args[0];
