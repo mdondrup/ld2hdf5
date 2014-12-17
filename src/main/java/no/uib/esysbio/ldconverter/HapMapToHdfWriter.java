@@ -280,11 +280,19 @@ public class HapMapToHdfWriter {
 					 * j; }
 					 */
 
-					currentSNPIdArray[idx] = Integer.valueOf(ls[3].replaceAll(
-							"\\D", ""));
+					try {
+						currentSNPIdArray[idx] = Integer.valueOf(ls[3]
+								.replaceAll("\\D", ""));
+					} catch (NumberFormatException e) {
+						currentSNPIdArray[idx] = 0;
+					}
 
-					correspondingSNPIdArray[idx] = Integer.valueOf(ls[4]
-							.replaceAll("\\D", ""));
+					try {
+						correspondingSNPIdArray[idx] = Integer.valueOf(ls[4]
+								.replaceAll("\\D", ""));
+					} catch (NumberFormatException e) {
+						correspondingSNPIdArray[idx] = 0;
+					}
 					valueArray[idx] = Double.valueOf(ls[6]);
 
 					markerOnePositionArray[idx] = Integer.valueOf(ls[0]);
